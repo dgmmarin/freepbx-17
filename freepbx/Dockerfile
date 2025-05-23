@@ -37,17 +37,17 @@ RUN echo '[directories](!)' >> /etc/asterisk/asterisk.conf && \
   echo 'runuser = asterisk' >> /etc/asterisk/asterisk.conf && \
   echo 'rungroup = asterisk' >> /etc/asterisk/asterisk.conf
 
-# Clone and install FreePBX
+# Clone FreePBX
 RUN git clone https://github.com/FreePBX/framework.git /usr/src/freepbx
 
-# Start Asterisk and install FreePBX
-USER asterisk
-RUN /usr/sbin/asterisk -f & sleep 5
-USER root
-RUN cd /usr/src/freepbx && ./install -n
+# Copy startup script
+COPY start.sh /start.sh
+RUN chmod +x /start.sh
 
 # Expose ports
 EXPOSE 80 443 5060/udp 5160/udp 18000-18100/udp
 
-# Startup script
-CMD ["sh", "-c", "/usr/sbin/asterisk && apache2ctl -D FOREGROUND"]
+RUN echo "ServerName localhost" >> /etc/apache2/apache2.conf
+
+# Startup
+CMD ["/start.sh"]
