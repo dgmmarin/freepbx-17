@@ -3,6 +3,7 @@ FROM debian:12
 ENV DEBIAN_FRONTEND=noninteractive
 WORKDIR /usr/src
 
+# Install dependencies
 RUN apt-get update && apt-get install -y \
   wget curl gnupg2 ca-certificates lsb-release net-tools \
   cron ntpdate iputils-ping nano sudo git unzip sox \
@@ -13,7 +14,12 @@ RUN apt-get update && apt-get install -y \
   apache2 php-pear php-dev nodejs npm mariadb-client && \
   apt-get clean
 
-# Install Asterisk 21
+# Create asterisk user and directories
+RUN groupadd -r asterisk && useradd -r -d /var/lib/asterisk -g asterisk asterisk && \
+  mkdir -p /var/run/asterisk /var/lib/asterisk /etc/asterisk /var/log/asterisk /var/spool/asterisk && \
+  chown -R asterisk:asterisk /var/run/asterisk /var/lib/asterisk /etc/asterisk /var/log/asterisk /var/spool/asterisk
+
+# Download and install Asterisk
 RUN cd /usr/src && \
   wget http://downloads.asterisk.org/pub/telephony/asterisk/asterisk-21.9.1.tar.gz && \
   tar xvfz asterisk-21.9.1.tar.gz && \
@@ -26,13 +32,22 @@ RUN cd /usr/src && \
   menuselect.makeopts && \
   make -j$(nproc) && make install && make samples && make config && ldconfig
 
-# Install FreePBX
-RUN cd /usr/src && \
-  git clone https://github.com/FreePBX/framework.git freepbx && \
-  cd freepbx && \
-  ./start_asterisk start && \
-  ./install -n
+# Configure asterisk.conf to run as the correct user
+RUN echo '[directories](!)' >> /etc/asterisk/asterisk.conf && \
+  echo 'runuser = asterisk' >> /etc/asterisk/asterisk.conf && \
+  echo 'rungroup = asterisk' >> /etc/asterisk/asterisk.conf
 
+# Clone and install FreePBX
+RUN git clone https://github.com/FreePBX/framework.git /usr/src/freepbx
+
+# Start Asterisk and install FreePBX
+USER asterisk
+RUN /usr/sbin/asterisk -f & sleep 5
+USER root
+RUN cd /usr/src/freepbx && ./install -n
+
+# Expose ports
 EXPOSE 80 443 5060/udp 5160/udp 18000-18100/udp
 
-CMD ["sh", "-c", "service mysql start && apache2ctl -D FOREGROUND"]
+# Startup script
+CMD ["sh", "-c", "/usr/sbin/asterisk && apache2ctl -D FOREGROUND"]
