@@ -1,0 +1,52 @@
+version: "3.8"
+
+services:
+  db:
+    image: mariadb:10.11
+    container_name: freepbx-db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: secret
+      MYSQL_DATABASE: asterisk
+      MYSQL_USER: asterisk
+      MYSQL_PASSWORD: asteriskpw
+    volumes:
+      - db_data:/var/lib/mysql
+    networks:
+      - pbxnet
+
+  freepbx:
+    build:
+      context: ./freepbx
+    container_name: freepbx
+    depends_on:
+      - db
+    ports:
+      - "80:80"
+      - "443:443"
+      - "5060:5060/udp"
+      - "5160:5160/udp"
+      - "18000-18100:18000-18100/udp"
+    environment:
+      - MYSQL_HOST=db
+      - MYSQL_DATABASE=asterisk
+      - MYSQL_USER=asterisk
+      - MYSQL_PASSWORD=asteriskpw
+    volumes:
+      - freepbx_data:/etc/asterisk
+      - freepbx_logs:/var/log/asterisk
+      - freepbx_www:/var/www/html
+    networks:
+      - pbxnet
+    restart: unless-stopped
+    tty: true
+    stdin_open: true
+
+volumes:
+  db_data:
+  freepbx_data:
+  freepbx_logs:
+  freepbx_www:
+
+networks:
+  pbxnet:
